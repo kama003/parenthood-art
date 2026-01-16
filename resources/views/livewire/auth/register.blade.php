@@ -1,4 +1,11 @@
 <x-layouts.auth>
+    @if(\App\Models\User::where('role', 'admin')->exists())
+        <div class="text-center space-y-4">
+            <h3 class="text-xl font-bold">{{ __('Registration Closed') }}</h3>
+            <p class="text-zinc-600 dark:text-zinc-400">{{ __('Application setup is complete. Please log in.') }}</p>
+            <flux:button :href="route('login')" variant="primary" class="w-full">{{ __('Log in') }}</flux:button>
+        </div>
+    @else
     <div class="flex flex-col gap-6">
         <x-auth-header :title="__('Create an account')" :description="__('Enter your details below to create your account')" />
 
@@ -64,4 +71,5 @@
             <flux:link :href="route('login')" wire:navigate>{{ __('Log in') }}</flux:link>
         </div>
     </div>
+    @endif
 </x-layouts.auth>
