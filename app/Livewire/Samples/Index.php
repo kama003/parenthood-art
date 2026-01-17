@@ -12,19 +12,8 @@ class Index extends Component
     public $bloodGroup = '';
     public $vialsCount = 1;
     public $freezeDate = '';
-    public $expiryDate = '';
     public $status = 'available';
-
-    public function updatedFreezeDate($value)
-    {
-        if ($value) {
-            try {
-                $this->expiryDate = \Carbon\Carbon::parse($value)->addYear()->format('Y-m-d');
-            } catch (\Exception $e) {
-                // Handle invalid date
-            }
-        }
-    }
+    public $assigningHospitalId = '';
 
     public $editingSampleId = null;
 
@@ -45,7 +34,6 @@ class Index extends Component
         $this->bloodGroup = $sample->blood_group;
         $this->vialsCount = $sample->vials_count;
         $this->freezeDate = $sample->freeze_date->format('Y-m-d');
-        $this->expiryDate = $sample->expiry_date ? $sample->expiry_date->format('Y-m-d') : '';
         $this->status = $sample->status;
 
         $this->modal('add-sample')->show();
@@ -54,33 +42,33 @@ class Index extends Component
     public function resetForm()
     {
         $this->editingSampleId = null;
-        $this->reset(['sampleId', 'donorId', 'coupleId', 'bloodGroup', 'vialsCount', 'freezeDate', 'expiryDate', 'status']);
+        $this->editingSampleId = null;
+        $this->reset(['sampleId', 'donorId', 'coupleId', 'bloodGroup', 'vialsCount', 'freezeDate', 'status']);
         $this->status = 'available'; // Default
     }
 
     public function save()
     {
         $rules = [
-            'donorId' => 'required', // Simplified for now, should check exists
+            'donorId' => 'required|exists:donors,id',
             'bloodGroup' => 'required',
             'freezeDate' => 'required|date',
         ];
 
         if (!$this->editingSampleId) {
-             $rules['sampleId'] = 'required|unique:samples,sample_id';
+             $this->sampleId = 'SMP-' . strtoupper(\Illuminate\Support\Str::random(8));
         }
 
         $this->validate($rules);
 
         $data = [
             'sample_id' => $this->sampleId,
-            'donor_id' => \App\Models\Donor::where('donor_number', $this->donorId)->first()->id ?? $this->donorId, // Handle if ID provided or Number
+            'donor_id' => $this->donorId,
             'couple_id' => $this->coupleId ?: null,
             'user_id' => auth()->id(),
             'blood_group' => $this->bloodGroup,
             'vials_count' => $this->vialsCount,
             'freeze_date' => $this->freezeDate,
-            'expiry_date' => $this->expiryDate,
             'status' => $this->status,
         ];
         
@@ -130,6 +118,46 @@ class Index extends Component
         $this->dispatch('toast', message: 'Selected samples deleted successfully.', type: 'success');
     }
 
+    public function assignSelected()
+    {
+        if (!auth()->user()->isAdmin()) {
+            return;
+        }
+
+        $this->validate([
+            'assigningHospitalId' => 'required|exists:users,id',
+        ]);
+
+        if (empty($this->selected)) {
+             $this->dispatch('toast', message: 'No samples selected.', type: 'error');
+             return;
+        }
+
+        \App\Models\Sample::whereIn('id', $this->selected)->update([
+            'user_id' => $this->assigningHospitalId
+        ]);
+
+        $this->selected = [];
+        $this->assigningHospitalId = '';
+        $this->modal('assign-samples')->close();
+        $this->dispatch('toast', message: 'Samples assigned to hospital successfully.', type: 'success');
+    }
+
+    public function getHospitalsProperty()
+    {
+        return \App\Models\User::where('role', 'hospital')->orderBy('name')->get();
+    }
+
+    public function getDonorsProperty()
+    {
+        return \App\Models\Donor::latest()->get();
+    }
+
+    public function getCouplesProperty()
+    {
+        return \App\Models\Couple::latest()->get();
+    }
+
     public $tab = 'all';
 
     public function render()
@@ -141,7 +169,11 @@ class Index extends Component
             $query->where('user_id', $user->id);
         }
 
-        if ($this->tab !== 'all') {
+        if ($this->tab === 'inventory') {
+            if ($user->isAdmin()) {
+                $query->where('user_id', '<>', $user->id);
+            }
+        } elseif ($this->tab !== 'all') {
             $query->where('status', $this->tab);
         }
 

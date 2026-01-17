@@ -245,9 +245,7 @@ class Index extends Component
         
         if ($this->tab === 'pending') {
             $query->where('status', 'pending');
-        } elseif ($this->tab === 'completed') {
-            $query->whereIn('status', ['dispatched', 'delivered', 'completed']); // Assuming these are 'completed' states
-        } // 'history' or 'all' shows all records
+        }
 
         return view('livewire.hospital-orders.index', [
             'orders' => $query->latest()->get(),

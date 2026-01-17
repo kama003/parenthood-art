@@ -14,13 +14,11 @@ class Sample extends Model
         'blood_group',
         'vials_count',
         'freeze_date',
-        'expiry_date',
         'status',
     ];
 
     protected $casts = [
         'freeze_date' => 'date',
-        'expiry_date' => 'date',
         'vials_count' => 'integer',
     ];
 

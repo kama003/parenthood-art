@@ -30,7 +30,7 @@
             <table class="w-full divide-y divide-zinc-200 dark:divide-zinc-700">
                 <thead class="bg-zinc-50 dark:bg-zinc-800">
                     <tr>
-                         <th scope="col" class="px-6 py-3 text-left">
+                        <th scope="col" class="px-6 py-3 text-left">
                             @if(auth()->user()->isAdmin())
                             <!-- Basic checkbox implementation for simplicity -->
                             <input type="checkbox" class="rounded border-zinc-300 dark:border-zinc-700 text-indigo-600 shadow-sm focus:ring-indigo-500" disabled title="Select individual rows">

@@ -3,7 +3,10 @@
         <flux:heading size="xl">Samples Inventory</flux:heading>
         <div class="flex gap-2">
             @if(auth()->user()->isAdmin() && count($selected) > 0)
-            <flux:button variant="danger" icon="trash" wire:click="deleteSelected" wire:confirm="Are you sure you want to delete selected samples?">Delete Selected</flux:button>
+            <flux:modal.trigger name="assign-samples">
+                <flux:button icon="user-plus">Assign</flux:button>
+            </flux:modal.trigger>
+            <flux:button variant="danger" icon="trash" wire:click="deleteSelected" wire:confirm="Are you sure you want to delete selected samples?">Delete</flux:button>
             @endif
             <flux:modal.trigger name="add-sample">
                 <flux:button variant="primary" icon="plus" wire:click="create">Add New Sample</flux:button>
@@ -15,7 +18,7 @@
 
     <div class="mb-4 border-b border-zinc-200 dark:border-zinc-700">
         <nav class="-mb-px flex space-x-8" aria-label="Tabs">
-            @foreach(['all' => 'All', 'available' => 'Available', 'sold' => 'Sold', 'returned' => 'Returned', 'expired' => 'Expired'] as $key => $label)
+            @foreach(['all' => 'All', 'available' => 'Available', 'sold' => 'Sold', 'returned' => 'Returned', 'expired' => 'Expired', 'inventory' => 'Inventory'] as $key => $label)
                 <button 
                     wire:click="$set('tab', '{{ $key }}')"
                     class="{{ $tab === $key ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300 dark:text-zinc-400 dark:hover:text-zinc-300' }} 
@@ -42,7 +45,6 @@
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Blood Group</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Vials</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Freeze Date</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Expiry</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Status</th>
                         @if(auth()->user()->isDoctor() || auth()->user()->isAdmin())
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Hospital</th>
@@ -65,7 +67,6 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400"><flux:badge size="sm">{{ $sample->blood_group }}</flux:badge></td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">{{ $sample->vials_count }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">{{ $sample->freeze_date->format('d M Y') }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">{{ $sample->expiry_date?->format('d M Y') }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
                                 <flux:badge size="sm" :color="$sample->status === 'available' ? 'green' : 'zinc'">{{ ucfirst($sample->status) }}</flux:badge>
                             </td>
@@ -98,10 +99,22 @@
                 <flux:subheading>{{ $editingSampleId ? 'Update sample details.' : 'Record details of semen/egg sample.' }}</flux:subheading>
             </div>
 
-            <flux:input label="Sample ID" wire:model="sampleId" placeholder="Auto-gen..." />
+            @if($editingSampleId)
+            <flux:input label="Sample ID" wire:model="sampleId" readonly />
+            @endif
             
-            <flux:input label="Donor ID" wire:model="donorId" placeholder="Search Donor..." />
-            <flux:input label="Couple ID (Optional)" wire:model="coupleId" placeholder="Search Couple..." />
+            <flux:select label="Donor" wire:model="donorId" placeholder="Select Donor" searchable>
+                @foreach($this->donors as $donor)
+                    <flux:select.option value="{{ $donor->id }}">{{ $donor->donor_number }} ({{ $donor->blood_group }})</flux:select.option>
+                @endforeach
+            </flux:select>
+
+            <flux:select label="Couple (Optional)" wire:model="coupleId" placeholder="Select Couple" searchable>
+                <flux:select.option value="">None</flux:select.option>
+                @foreach($this->couples as $couple)
+                    <flux:select.option value="{{ $couple->id }}">{{ $couple->partner_1_name }} & {{ $couple->partner_2_name }}</flux:select.option>
+                @endforeach
+            </flux:select>
             
             <div class="grid grid-cols-2 gap-4">
                  <flux:select label="Blood Group" wire:model="bloodGroup" placeholder="Select">
@@ -119,7 +132,6 @@
 
             <div class="grid grid-cols-2 gap-4">
                 <flux:input label="Freeze Date" type="date" wire:model.live="freezeDate" />
-                <flux:input label="Expiry Date" type="date" wire:model="expiryDate" readonly />
             </div>
 
             <flux:select label="Status" wire:model="status" placeholder="Select">
@@ -134,6 +146,27 @@
                     <flux:button variant="ghost">Cancel</flux:button>
                 </flux:modal.close>
                 <flux:button type="submit" variant="primary">{{ $editingSampleId ? 'Update Sample' : 'Save Sample' }}</flux:button>
+            </div>
+        </form>
+    </flux:modal>
+    <flux:modal name="assign-samples" class="w-full md:w-96">
+        <form wire:submit="assignSelected" class="space-y-6">
+            <div>
+                <flux:heading size="lg">Assign Samples</flux:heading>
+                <flux:subheading>Assign {{ count($selected) }} selected samples to a hospital.</flux:subheading>
+            </div>
+
+            <flux:select label="Select Hospital" wire:model="assigningHospitalId" placeholder="Choose a hospital">
+                @foreach($this->hospitals as $hospital)
+                    <flux:select.option value="{{ $hospital->id }}">{{ $hospital->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
+
+            <div class="flex justify-end space-x-2">
+                 <flux:modal.close>
+                    <flux:button variant="ghost">Cancel</flux:button>
+                </flux:modal.close>
+                <flux:button type="submit" variant="primary">Assign</flux:button>
             </div>
         </form>
     </flux:modal>
